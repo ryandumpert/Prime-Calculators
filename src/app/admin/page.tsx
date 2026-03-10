@@ -270,21 +270,21 @@ export default function AdminPage() {
     // ---------- ADMIN DASHBOARD ----------
     const sections: SectionKey[] = [
         "global",
-        "dscr",
-        "fix-and-flip",
+        "long-term-rental",
+        "short-term-rental",
         "rate-term-refi",
         "cash-out-refi",
-        "bridge",
+        "fix-and-flip",
         "brrr",
     ];
 
     const sectionIcons: Record<SectionKey, React.ElementType> = {
         global: Globe,
-        dscr: Calculator,
-        "fix-and-flip": Calculator,
+        "long-term-rental": Calculator,
+        "short-term-rental": Calculator,
         "rate-term-refi": Calculator,
         "cash-out-refi": Calculator,
-        bridge: Calculator,
+        "fix-and-flip": Calculator,
         brrr: Calculator,
     };
 

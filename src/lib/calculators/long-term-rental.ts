@@ -1,9 +1,8 @@
-import { getCreditAdjustment, type CreditBandValue } from "@/lib/constants";
+import { getDSCRRate, type CreditBandValue } from "@/lib/constants";
 import { calcMonthlyPayment, calcIOPayment } from "@/lib/format";
 
-export interface DSCRInputs {
+export interface LTRInputs {
     monthlyGrossRent: number;
-    vacancyRate: number;
     propertyTaxes: number;
     insurance: number;
     hoa: number;
@@ -18,7 +17,7 @@ export interface DSCRInputs {
     creditBand: CreditBandValue;
 }
 
-export interface DSCROutputs {
+export interface LTROutputs {
     effectiveRent: number;
     managementCost: number;
     totalMonthlyExpenses: number;
@@ -33,12 +32,10 @@ export interface DSCROutputs {
     isComplete: boolean;
 }
 
-export const DSCR_BASE_RATE = 8.5;
 
-export function computeDSCR(inputs: DSCRInputs): DSCROutputs {
+export function computeLTR(inputs: LTRInputs): LTROutputs {
     const {
         monthlyGrossRent,
-        vacancyRate,
         propertyTaxes,
         insurance,
         hoa,
@@ -54,7 +51,7 @@ export function computeDSCR(inputs: DSCRInputs): DSCROutputs {
 
     const isComplete = monthlyGrossRent > 0 && purchasePrice > 0;
 
-    const effectiveRent = monthlyGrossRent * (1 - vacancyRate / 100);
+    const effectiveRent = monthlyGrossRent;
     const managementCost = managementEnabled
         ? effectiveRent * (managementRate / 100)
         : 0;
@@ -64,7 +61,7 @@ export function computeDSCR(inputs: DSCRInputs): DSCROutputs {
 
     const downPaymentAmount = purchasePrice * (downPaymentPercent / 100);
     const loanAmount = purchasePrice - downPaymentAmount;
-    const estimatedRate = DSCR_BASE_RATE + getCreditAdjustment(creditBand);
+    const estimatedRate = getDSCRRate(creditBand);
 
     const monthlyPayment = interestOnly
         ? calcIOPayment(loanAmount, estimatedRate)

@@ -1,4 +1,4 @@
-export type DealHealthLevel = "good" | "caution" | "poor" | "incomplete";
+export type DealHealthLevel = "excellent" | "good" | "fair" | "poor" | "incomplete";
 
 export interface DealHealthResult {
     score: number; // 0-100
@@ -8,17 +8,20 @@ export interface DealHealthResult {
 }
 
 export function getDealHealthLevel(score: number): DealHealthLevel {
-    if (score >= 70) return "good";
-    if (score >= 40) return "caution";
+    if (score >= 85) return "excellent";
+    if (score >= 65) return "good";
+    if (score >= 40) return "fair";
     return "poor";
 }
 
 export function getDealHealthLabel(level: DealHealthLevel): string {
     switch (level) {
+        case "excellent":
+            return "Excellent";
         case "good":
             return "Good";
-        case "caution":
-            return "Caution";
+        case "fair":
+            return "Fair";
         case "poor":
             return "Poor";
         case "incomplete":
@@ -28,9 +31,11 @@ export function getDealHealthLabel(level: DealHealthLevel): string {
 
 export function getDealHealthColor(level: DealHealthLevel): string {
     switch (level) {
+        case "excellent":
+            return "text-blue-500";
         case "good":
             return "text-emerald-600";
-        case "caution":
+        case "fair":
             return "text-amber-500";
         case "poor":
             return "text-red-500";
@@ -41,9 +46,11 @@ export function getDealHealthColor(level: DealHealthLevel): string {
 
 export function getDealHealthBg(level: DealHealthLevel): string {
     switch (level) {
+        case "excellent":
+            return "bg-blue-500";
         case "good":
             return "bg-emerald-500";
-        case "caution":
+        case "fair":
             return "bg-amber-500";
         case "poor":
             return "bg-red-500";
@@ -54,9 +61,11 @@ export function getDealHealthBg(level: DealHealthLevel): string {
 
 export function getDealHealthBgLight(level: DealHealthLevel): string {
     switch (level) {
+        case "excellent":
+            return "bg-blue-50 dark:bg-blue-950/30";
         case "good":
             return "bg-emerald-50 dark:bg-emerald-950/30";
-        case "caution":
+        case "fair":
             return "bg-amber-50 dark:bg-amber-950/30";
         case "poor":
             return "bg-red-50 dark:bg-red-950/30";
@@ -65,52 +74,83 @@ export function getDealHealthBgLight(level: DealHealthLevel): string {
     }
 }
 
-// DSCR Deal Health
-export function dscrDealHealth(
+// ─── Purchase - Long Term Rental Deal Health ────────────────────────────────
+// DSCR-driven: Poor (<1), Fair (1–1.2), Good (1.21–1.3), Excellent (1.3+)
+export function ltrDealHealth(
     dscr: number,
     cashflow: number,
     rate: number
 ): DealHealthResult {
-    let score = 50;
     const reasons: string[] = [];
+    let score: number;
 
-    if (dscr >= 1.25) {
-        score += 25;
-        reasons.push("Strong DSCR — well above lender minimums");
+    if (dscr >= 1.3) {
+        score = 90;
+        reasons.push("Prime deal — DSCR above 1.3x with excellent cashflow coverage");
+        reasons.push("Strong debt service cushion provides maximum lender flexibility");
+    } else if (dscr >= 1.21) {
+        score = 72;
+        reasons.push("High-value deal — DSCR between 1.21x and 1.3x with solid cashflow");
+        reasons.push("Healthy margins support sustainable rental income");
     } else if (dscr >= 1.0) {
-        score += 10;
-        reasons.push("DSCR meets minimum thresholds");
+        score = 45;
+        reasons.push("Loan eligible — DSCR between 1.0x and 1.2x, but cashflow margins are tight");
+        reasons.push("Proceed with caution — consider reserves for vacancies and repairs");
     } else {
-        score -= 20;
-        reasons.push("DSCR below 1.0 — negative cashflow risk");
+        score = 20;
+        reasons.push("DSCR below 1.0 — rental income does not cover debt service");
+        reasons.push("Property cashflow will not sustain loan payments and expenses");
     }
 
-    if (cashflow > 500) {
-        score += 15;
-        reasons.push("Healthy monthly cashflow buffer");
-    } else if (cashflow > 0) {
-        score += 5;
-        reasons.push("Positive but thin cashflow margin");
-    } else {
-        score -= 15;
-        reasons.push("Negative cashflow — property costs exceed rental income");
-    }
-
-    if (rate > 10) {
-        score -= 10;
-        reasons.push("High estimated rate may compress margins");
-    }
+    // Minor adjustments for cashflow and rate
+    if (cashflow > 500 && dscr >= 1.0) score += 5;
+    if (rate > 10) score -= 5;
 
     score = Math.max(0, Math.min(100, score));
-    return {
-        score,
-        level: getDealHealthLevel(score),
-        label: getDealHealthLabel(getDealHealthLevel(score)),
-        reasons: reasons.slice(0, 2),
-    };
+    const level = getDealHealthLevel(score);
+    return { score, level, label: getDealHealthLabel(level), reasons: reasons.slice(0, 2) };
 }
 
-// Fix & Flip Deal Health
+// ─── Purchase - Short Term Rental Deal Health ───────────────────────────────
+// DSCR-driven: Poor (<1), Fair (1–1.2), Good (1.21–1.3), Excellent (1.3+)
+export function strDealHealth(
+    dscr: number,
+    cashflow: number,
+    occupancyRate: number,
+    rate: number
+): DealHealthResult {
+    const reasons: string[] = [];
+    let score: number;
+
+    if (dscr >= 1.3) {
+        score = 90;
+        reasons.push("Prime deal — DSCR above 1.3x with excellent short-term rental performance");
+        reasons.push("Strong revenue coverage provides a cushion for seasonal fluctuations");
+    } else if (dscr >= 1.21) {
+        score = 72;
+        reasons.push("High-value deal — DSCR between 1.21x and 1.3x with solid cashflow");
+        reasons.push("Good revenue margins support sustainable STR operations");
+    } else if (dscr >= 1.0) {
+        score = 45;
+        reasons.push("Loan eligible — DSCR between 1.0x and 1.2x, but cashflow margins are tight");
+        reasons.push("Proceed with caution — STR income can be seasonal and unpredictable");
+    } else {
+        score = 20;
+        reasons.push("DSCR below 1.0 — rental revenue does not cover debt service");
+        reasons.push("Property cashflow will not sustain loan payments and expenses");
+    }
+
+    // Minor adjustments for occupancy and rate
+    if (occupancyRate < 50) score -= 5;
+    if (occupancyRate >= 70 && dscr >= 1.0) score += 3;
+    if (rate > 10) score -= 5;
+
+    score = Math.max(0, Math.min(100, score));
+    const level = getDealHealthLevel(score);
+    return { score, level, label: getDealHealthLabel(level), reasons: reasons.slice(0, 2) };
+}
+
+// Fix and Flip - Sell for Profit Deal Health
 export function flipDealHealth(
     grossProfit: number,
     roi: number,
@@ -155,135 +195,87 @@ export function flipDealHealth(
     };
 }
 
-// Rate & Term Refi Deal Health
+// ─── Refinance - Rate & Term Only Deal Health ───────────────────────────────
 export function refiDealHealth(
     monthlySavings: number,
-    breakevenMonths: number
+    breakevenMonths: number,
+    dscr: number,
+    rate: number
 ): DealHealthResult {
-    let score = 50;
     const reasons: string[] = [];
+    let score: number;
 
-    if (monthlySavings > 300) {
-        score += 25;
-        reasons.push("Significant monthly savings");
-    } else if (monthlySavings > 100) {
-        score += 10;
-        reasons.push("Moderate savings — worth considering");
-    } else if (monthlySavings > 0) {
-        score += 0;
-        reasons.push("Minimal savings — evaluate if closing costs are justified");
+    // Primary scoring based on DSCR (matching purchase calc thresholds)
+    if (dscr >= 1.3) {
+        score = 90;
+        reasons.push("Prime refinance — DSCR above 1.3x with excellent cashflow coverage");
+    } else if (dscr >= 1.21) {
+        score = 72;
+        reasons.push("Solid refinance — DSCR between 1.21x and 1.3x with good cashflow");
+    } else if (dscr >= 1.0) {
+        score = 45;
+        reasons.push("Refinance viable — DSCR between 1.0x and 1.2x, but margins are tight");
     } else {
-        score -= 25;
-        reasons.push("Payment increases — refinance may not be beneficial");
+        score = 20;
+        reasons.push("DSCR below 1.0 — rental income does not cover new debt service");
     }
 
-    if (breakevenMonths < 24) {
-        score += 20;
-        reasons.push("Quick breakeven on closing costs");
-    } else if (breakevenMonths < 48) {
+    // Secondary adjustments for savings/breakeven
+    if (monthlySavings > 300 && breakevenMonths < 24) {
         score += 5;
-        reasons.push("Reasonable breakeven timeline");
-    } else {
-        score -= 10;
-        reasons.push("Long breakeven — staying in the loan long enough matters");
+        reasons.push("Significant monthly savings with a fast breakeven timeline");
+    } else if (monthlySavings > 0 && breakevenMonths < 60) {
+        reasons.push("Positive monthly savings — refinance reduces your cost of capital");
+    } else if (monthlySavings <= 0) {
+        score -= 5;
+        reasons.push("Payment increases — current terms may be more favorable");
     }
+
+    if (rate > 10) score -= 5;
 
     score = Math.max(0, Math.min(100, score));
-    return {
-        score,
-        level: getDealHealthLevel(score),
-        label: getDealHealthLabel(getDealHealthLevel(score)),
-        reasons: reasons.slice(0, 2),
-    };
+    const level = getDealHealthLevel(score);
+    return { score, level, label: getDealHealthLabel(level), reasons: reasons.slice(0, 2) };
 }
 
-// Cash-Out Refi Deal Health
+
+// ─── Refinance - Cash Out Deal Health ───────────────────────────────────────
 export function cashOutDealHealth(
     netCashOut: number,
     paymentDiff: number,
     ltv: number
 ): DealHealthResult {
-    let score = 50;
     const reasons: string[] = [];
+    let score: number;
 
-    if (netCashOut > 50000) {
-        score += 20;
-        reasons.push("Substantial cash-out proceeds");
-    } else if (netCashOut > 10000) {
-        score += 10;
-        reasons.push("Moderate cash-out amount");
+    if (netCashOut > 50000 && paymentDiff < 300 && ltv <= 75) {
+        score = 90;
+        reasons.push("Prime cash-out — substantial proceeds with manageable payment impact");
+        reasons.push("Conservative LTV preserves equity and supports favorable terms");
+    } else if (netCashOut > 20000 && paymentDiff < 500) {
+        score = 72;
+        reasons.push("Solid cash-out — good proceeds with a reasonable payment increase");
+        reasons.push("Useful capital extraction while maintaining sustainable payments");
+    } else if (netCashOut > 5000 && paymentDiff < 800) {
+        score = 45;
+        reasons.push("Modest cash-out — proceeds available but proceed with caution");
+        reasons.push("Payment increase and closing costs may eat into the benefit");
     } else {
-        score -= 15;
-        reasons.push("Low cash-out — closing costs may eat proceeds");
+        score = 20;
+        reasons.push("Cash-out may not be advantageous — low proceeds or high payment impact");
+        reasons.push(netCashOut <= 0
+            ? "Insufficient equity — closing costs may exceed available proceeds"
+            : "Significant payment increase may strain cashflow");
     }
 
-    if (paymentDiff < 200) {
-        score += 15;
-        reasons.push("Minimal payment increase");
-    } else if (paymentDiff < 500) {
-        score += 5;
-        reasons.push("Moderate payment impact");
-    } else {
-        score -= 10;
-        reasons.push("Significant payment increase");
-    }
-
-    if (ltv > 80) {
-        score -= 10;
-        reasons.push("High LTV may require higher rate or MI");
-    }
+    if (ltv > 80) score -= 5;
 
     score = Math.max(0, Math.min(100, score));
-    return {
-        score,
-        level: getDealHealthLevel(score),
-        label: getDealHealthLabel(getDealHealthLevel(score)),
-        reasons: reasons.slice(0, 2),
-    };
+    const level = getDealHealthLevel(score);
+    return { score, level, label: getDealHealthLabel(level), reasons: reasons.slice(0, 2) };
 }
 
-// Bridge Loan Deal Health
-export function bridgeDealHealth(
-    totalCost: number,
-    loanAmount: number,
-    termMonths: number
-): DealHealthResult {
-    let score = 50;
-    const reasons: string[] = [];
-
-    const costRatio = totalCost / Math.max(loanAmount, 1);
-    if (costRatio < 0.05) {
-        score += 20;
-        reasons.push("Low total cost relative to loan");
-    } else if (costRatio < 0.1) {
-        score += 10;
-        reasons.push("Moderate financing cost");
-    } else {
-        score -= 15;
-        reasons.push("High total financing cost — ensure exit strategy is solid");
-    }
-
-    if (termMonths <= 6) {
-        score += 15;
-        reasons.push("Short-term bridge — manageable risk window");
-    } else if (termMonths <= 12) {
-        score += 5;
-        reasons.push("Standard bridge term");
-    } else {
-        score -= 10;
-        reasons.push("Extended bridge — consider permanent financing options");
-    }
-
-    score = Math.max(0, Math.min(100, score));
-    return {
-        score,
-        level: getDealHealthLevel(score),
-        label: getDealHealthLabel(getDealHealthLevel(score)),
-        reasons: reasons.slice(0, 2),
-    };
-}
-
-// BRRRR Deal Health
+// Fix and Flip - Rent After (BRRRR) Deal Health
 export function brrrrDealHealth(
     cashLeftInDeal: number,
     monthlyCashflow: number,

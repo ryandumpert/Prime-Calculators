@@ -5,21 +5,29 @@
  */
 
 export interface CreditBandAdjustment {
-    "760+": number;
-    "720-759": number;
-    "680-719": number;
-    "640-679": number;
-    "<640": number;
+    "750+": number;
+    "725-749": number;
+    "700-724": number;
+    "680-699": number;
+    "660-679": number;
 }
 
 export interface GlobalDefaults {
     creditBandAdjustments: CreditBandAdjustment;
 }
 
-export interface DSCRDefaults {
+export interface LTRDefaults {
     baseRate: number;
     defaultTermYears: number;
     defaultVacancyPercent: number;
+    defaultManagementPercent: number;
+    defaultDownPaymentPercent: number;
+}
+
+export interface STRDefaults {
+    baseRate: number;
+    defaultTermYears: number;
+    defaultOccupancyPercent: number;
     defaultManagementPercent: number;
     defaultDownPaymentPercent: number;
 }
@@ -46,13 +54,6 @@ export interface CashOutRefiDefaults {
     defaultClosingCostPercent: number;
 }
 
-export interface BridgeDefaults {
-    baseRate: number;
-    defaultDownPaymentPercent: number;
-    defaultTermMonths: number;
-    defaultPointsPercent: number;
-}
-
 export interface BRRRRDefaults {
     baseRate: number;
     defaultVacancyPercent: number;
@@ -64,11 +65,11 @@ export interface BRRRRDefaults {
 
 export interface AllDefaults {
     global: GlobalDefaults;
-    dscr: DSCRDefaults;
-    "fix-and-flip": FlipDefaults;
+    "long-term-rental": LTRDefaults;
+    "short-term-rental": STRDefaults;
     "rate-term-refi": RateTermRefiDefaults;
     "cash-out-refi": CashOutRefiDefaults;
-    bridge: BridgeDefaults;
+    "fix-and-flip": FlipDefaults;
     brrr: BRRRRDefaults;
 }
 
@@ -78,19 +79,37 @@ export type CalculatorSlug = keyof Omit<AllDefaults, "global">;
 export const SYSTEM_DEFAULTS: AllDefaults = {
     global: {
         creditBandAdjustments: {
-            "760+": -0.25,
-            "720-759": 0.0,
-            "680-719": 0.5,
-            "640-679": 1.0,
-            "<640": 1.75,
+            "750+": 0,
+            "725-749": 0.25,
+            "700-724": 0.50,
+            "680-699": 0.75,
+            "660-679": 1.0,
         },
     },
-    dscr: {
-        baseRate: 8.5,
+    "long-term-rental": {
+        baseRate: 6.25,
         defaultTermYears: 30,
         defaultVacancyPercent: 5,
         defaultManagementPercent: 8,
         defaultDownPaymentPercent: 25,
+    },
+    "short-term-rental": {
+        baseRate: 6.25,
+        defaultTermYears: 30,
+        defaultOccupancyPercent: 70,
+        defaultManagementPercent: 20,
+        defaultDownPaymentPercent: 25,
+    },
+    "rate-term-refi": {
+        baseRate: 6.25,
+        defaultNewTermYears: 30,
+        defaultClosingCosts: 8000,
+    },
+    "cash-out-refi": {
+        baseRate: 6.25,
+        defaultMaxLtvPercent: 75,
+        defaultNewTermYears: 30,
+        defaultClosingCostPercent: 2,
     },
     "fix-and-flip": {
         baseRate: 11.5,
@@ -99,23 +118,6 @@ export const SYSTEM_DEFAULTS: AllDefaults = {
         defaultBuyClosingPercent: 2,
         defaultSellCostPercent: 6,
         defaultHoldingMonths: 6,
-    },
-    "rate-term-refi": {
-        baseRate: 7.5,
-        defaultNewTermYears: 30,
-        defaultClosingCosts: 8000,
-    },
-    "cash-out-refi": {
-        baseRate: 8.0,
-        defaultMaxLtvPercent: 75,
-        defaultNewTermYears: 30,
-        defaultClosingCostPercent: 2,
-    },
-    bridge: {
-        baseRate: 10.5,
-        defaultDownPaymentPercent: 20,
-        defaultTermMonths: 12,
-        defaultPointsPercent: 2,
     },
     brrr: {
         baseRate: 8.5,
@@ -130,26 +132,25 @@ export const SYSTEM_DEFAULTS: AllDefaults = {
 // Human-readable labels for each field (used to generate the admin form)
 export const FIELD_LABELS: Record<string, Record<string, string>> = {
     global: {
-        "creditBandAdjustments.760+": "760+ Rate Adjustment (%)",
-        "creditBandAdjustments.720-759": "720–759 Rate Adjustment (%)",
-        "creditBandAdjustments.680-719": "680–719 Rate Adjustment (%)",
-        "creditBandAdjustments.640-679": "640–679 Rate Adjustment (%)",
-        "creditBandAdjustments.<640": "< 640 Rate Adjustment (%)",
+        "creditBandAdjustments.750+": "750+ Rate Adjustment (%)",
+        "creditBandAdjustments.725-749": "725–749 Rate Adjustment (%)",
+        "creditBandAdjustments.700-724": "700–724 Rate Adjustment (%)",
+        "creditBandAdjustments.680-699": "680–699 Rate Adjustment (%)",
+        "creditBandAdjustments.660-679": "660–679 Rate Adjustment (%)",
     },
-    dscr: {
+    "long-term-rental": {
         baseRate: "Base Rate (%)",
         defaultTermYears: "Default Term (years)",
         defaultVacancyPercent: "Default Vacancy (%)",
         defaultManagementPercent: "Default Management (%)",
         defaultDownPaymentPercent: "Default Down Payment (%)",
     },
-    "fix-and-flip": {
+    "short-term-rental": {
         baseRate: "Base Rate (%)",
+        defaultTermYears: "Default Term (years)",
+        defaultOccupancyPercent: "Default Occupancy (%)",
+        defaultManagementPercent: "Default Management (%)",
         defaultDownPaymentPercent: "Default Down Payment (%)",
-        defaultPointsPercent: "Default Points (%)",
-        defaultBuyClosingPercent: "Default Buy Closing Cost (%)",
-        defaultSellCostPercent: "Default Sell Cost (%)",
-        defaultHoldingMonths: "Default Holding Period (months)",
     },
     "rate-term-refi": {
         baseRate: "Base Rate (%)",
@@ -162,11 +163,13 @@ export const FIELD_LABELS: Record<string, Record<string, string>> = {
         defaultNewTermYears: "Default New Term (years)",
         defaultClosingCostPercent: "Default Closing Cost (%)",
     },
-    bridge: {
+    "fix-and-flip": {
         baseRate: "Base Rate (%)",
         defaultDownPaymentPercent: "Default Down Payment (%)",
-        defaultTermMonths: "Default Term (months)",
         defaultPointsPercent: "Default Points (%)",
+        defaultBuyClosingPercent: "Default Buy Closing Cost (%)",
+        defaultSellCostPercent: "Default Sell Cost (%)",
+        defaultHoldingMonths: "Default Holding Period (months)",
     },
     brrr: {
         baseRate: "Base Rate (%)",
@@ -180,10 +183,10 @@ export const FIELD_LABELS: Record<string, Record<string, string>> = {
 
 export const CALCULATOR_NAMES: Record<string, string> = {
     global: "Global Credit Adjustments",
-    dscr: "DSCR Ratio + Cashflow",
-    "fix-and-flip": "Fix & Flip Profit",
-    "rate-term-refi": "Rate & Term Refi",
-    "cash-out-refi": "Cash-Out Refi",
-    bridge: "Bridge Loan",
-    brrr: "BRRRR Snapshot",
+    "long-term-rental": "Purchase - Long Term Rental",
+    "short-term-rental": "Purchase - Short Term Rental",
+    "rate-term-refi": "Refinance - Rate & Term Only",
+    "cash-out-refi": "Refinance - Cash Out",
+    "fix-and-flip": "Fix and Flip - Sell for Profit",
+    brrr: "Fix and Flip - Rent After (BRRRR)",
 };

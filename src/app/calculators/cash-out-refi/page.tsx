@@ -5,14 +5,14 @@ import { CalculatorLayout } from "@/components/calculator-layout";
 import { DealHealthIndicator } from "@/components/deal-health-indicator";
 import { KpiCard } from "@/components/kpi-card";
 import { LeadCapture } from "@/components/lead-capture";
-import { MoneyInput, PercentInput, NumberInput } from "@/components/calculator-inputs";
+import { MoneyInput, ExpenseInput, PercentInput, NumberInput, SelectInput, type ExpenseFrequency } from "@/components/calculator-inputs";
 import {
     computeCashOutRefi,
     type CashOutRefiInputs,
 } from "@/lib/calculators/cash-out-refi";
 import { cashOutDealHealth } from "@/lib/deal-health";
 import { formatCurrency, formatPercent } from "@/lib/format";
-import type { CreditBandValue } from "@/lib/constants";
+import { CREDIT_BANDS, type CreditBandValue } from "@/lib/constants";
 import { Separator } from "@/components/ui/separator";
 
 export default function CashOutRefiPage() {
@@ -24,7 +24,12 @@ export default function CashOutRefiPage() {
         closingCostPercent: 2,
         monthlyTaxes: 400,
         monthlyInsurance: 150,
-        creditBand: "720-759" as CreditBandValue,
+        creditBand: "750+" as CreditBandValue,
+    });
+
+    const [freqs, setFreqs] = useState<Record<string, ExpenseFrequency>>({
+        monthlyTaxes: "monthly",
+        monthlyInsurance: "monthly",
     });
 
     const update = <K extends keyof CashOutRefiInputs>(
@@ -46,10 +51,10 @@ export default function CashOutRefiPage() {
 
     return (
         <CalculatorLayout
-            title="Cash-Out Refinance Calculator"
+            title="Refinance - Cash Out"
             description="Calculate net cash-out proceeds and understand the impact on your monthly payment."
             assumptions={[
-                `Base rate estimate: 8.00% (before credit adjustment)`,
+                `DSCR base rate: 6.25% (750+ credit)`,
                 `Your estimated rate: ${formatPercent(outputs.newRate)}`,
                 `Closing costs as a percentage of new loan amount`,
             ]}
@@ -83,6 +88,14 @@ export default function CashOutRefiPage() {
                             New Loan Terms
                         </h3>
                         <div className="space-y-3">
+                            <SelectInput
+                                id="credit-score"
+                                label="Estimated Credit Score"
+                                value={inputs.creditBand}
+                                onChange={(v) => update("creditBand", v as CreditBandValue)}
+                                options={CREDIT_BANDS.map((b) => ({ label: b.label, value: b.value }))}
+                                tooltip="Your credit score determines the interest rate used in calculations"
+                            />
                             <PercentInput
                                 id="max-ltv"
                                 label="Max LTV"
@@ -115,20 +128,24 @@ export default function CashOutRefiPage() {
 
                     <div>
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                            Monthly Costs (Optional)
+                            Costs (Optional)
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
-                            <MoneyInput
+                            <ExpenseInput
                                 id="monthly-taxes"
                                 label="Taxes"
                                 value={inputs.monthlyTaxes}
                                 onChange={(v) => update("monthlyTaxes", v)}
+                                frequency={freqs.monthlyTaxes}
+                                onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyTaxes: f }))}
                             />
-                            <MoneyInput
+                            <ExpenseInput
                                 id="monthly-insurance"
                                 label="Insurance"
                                 value={inputs.monthlyInsurance}
                                 onChange={(v) => update("monthlyInsurance", v)}
+                                frequency={freqs.monthlyInsurance}
+                                onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyInsurance: f }))}
                             />
                         </div>
                     </div>
@@ -192,9 +209,7 @@ export default function CashOutRefiPage() {
             }
             leadCapture={
                 <LeadCapture
-                    calculatorType="Cash-Out Refi"
-                    creditBand={inputs.creditBand}
-                    onCreditBandChange={(v) => update("creditBand", v)}
+                    calculatorType="Refinance - Cash Out"
                     inputsSnapshot={inputs as unknown as Record<string, unknown>}
                     outputsSnapshot={outputs as unknown as Record<string, unknown>}
                     dealHealthScore={dealHealth?.score}

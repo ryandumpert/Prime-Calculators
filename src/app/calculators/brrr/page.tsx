@@ -5,7 +5,7 @@ import { CalculatorLayout } from "@/components/calculator-layout";
 import { DealHealthIndicator } from "@/components/deal-health-indicator";
 import { KpiCard } from "@/components/kpi-card";
 import { LeadCapture } from "@/components/lead-capture";
-import { MoneyInput, PercentInput, NumberInput } from "@/components/calculator-inputs";
+import { MoneyInput, ExpenseInput, PercentInput, NumberInput, type ExpenseFrequency } from "@/components/calculator-inputs";
 import { computeBRRRR, type BRRRRInputs } from "@/lib/calculators/brrr";
 import { brrrrDealHealth } from "@/lib/deal-health";
 import { formatCurrency, formatPercent } from "@/lib/format";
@@ -25,7 +25,12 @@ export default function BRRRRPage() {
         refiLtvPercent: 75,
         refiTermYears: 30,
         closingCostPercent: 2,
-        creditBand: "720-759" as CreditBandValue,
+        creditBand: "750+" as CreditBandValue,
+    });
+
+    const [freqs, setFreqs] = useState<Record<string, ExpenseFrequency>>({
+        monthlyTaxes: "monthly",
+        monthlyInsurance: "monthly",
     });
 
     const update = <K extends keyof BRRRRInputs>(
@@ -49,8 +54,8 @@ export default function BRRRRPage() {
 
     return (
         <CalculatorLayout
-            title="BRRRR Snapshot Calculator"
-            description="Full BRRRR analysis: cash left in deal, cash-back at refi, and monthly cashflow projection."
+            title="Fix and Flip - Rent After (BRRRR)"
+            description="Full BRRRR analysis: buy, rehab, rent, refinance, and repeat. See cash left in deal and monthly cashflow."
             assumptions={[
                 `Base refi rate: 8.50% (before credit adjustment)`,
                 `Your estimated rate: ${formatPercent(outputs.refiRate)}`,
@@ -108,17 +113,21 @@ export default function BRRRRPage() {
                                 max={30}
                             />
                             <div className="grid grid-cols-2 gap-3">
-                                <MoneyInput
+                                <ExpenseInput
                                     id="taxes"
-                                    label="Monthly Taxes"
+                                    label="Taxes"
                                     value={inputs.monthlyTaxes}
                                     onChange={(v) => update("monthlyTaxes", v)}
+                                    frequency={freqs.monthlyTaxes}
+                                    onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyTaxes: f }))}
                                 />
-                                <MoneyInput
+                                <ExpenseInput
                                     id="insurance"
-                                    label="Monthly Insurance"
+                                    label="Insurance"
                                     value={inputs.monthlyInsurance}
                                     onChange={(v) => update("monthlyInsurance", v)}
+                                    frequency={freqs.monthlyInsurance}
+                                    onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyInsurance: f }))}
                                 />
                             </div>
                             <PercentInput
@@ -246,9 +255,7 @@ export default function BRRRRPage() {
             }
             leadCapture={
                 <LeadCapture
-                    calculatorType="BRRRR"
-                    creditBand={inputs.creditBand}
-                    onCreditBandChange={(v) => update("creditBand", v)}
+                    calculatorType="Fix and Flip - Rent After (BRRRR)"
                     inputsSnapshot={inputs as unknown as Record<string, unknown>}
                     outputsSnapshot={outputs as unknown as Record<string, unknown>}
                     dealHealthScore={dealHealth?.score}

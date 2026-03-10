@@ -6,7 +6,7 @@ import {
     getDealHealthBgLight,
     getDealHealthColor,
 } from "@/lib/deal-health";
-import { Shield, AlertTriangle, XCircle, HelpCircle } from "lucide-react";
+import { Shield, AlertTriangle, XCircle, HelpCircle, Star } from "lucide-react";
 
 interface DealHealthIndicatorProps {
     result: DealHealthResult | null;
@@ -38,7 +38,7 @@ export function DealHealthIndicator({ result }: DealHealthIndicatorProps) {
 
     const { score, level, label, reasons } = result;
     const Icon =
-        level === "good" ? Shield : level === "caution" ? AlertTriangle : XCircle;
+        level === "excellent" ? Star : level === "good" ? Shield : level === "fair" ? AlertTriangle : XCircle;
     const colorClass = getDealHealthColor(level);
     const bgClass = getDealHealthBg(level);
     const bgLightClass = getDealHealthBgLight(level);

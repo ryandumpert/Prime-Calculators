@@ -42,3 +42,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent configs
+.agent/
+.agents/
+
+# scratch notes
+landing-page-facelift-ideas.md

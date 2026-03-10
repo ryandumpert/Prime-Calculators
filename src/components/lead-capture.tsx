@@ -4,21 +4,11 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import { CREDIT_BANDS, type CreditBandValue } from "@/lib/constants";
 import { Mail, Send, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LeadCaptureProps {
     calculatorType: string;
-    creditBand: CreditBandValue;
-    onCreditBandChange: (band: CreditBandValue) => void;
     inputsSnapshot?: Record<string, unknown>;
     outputsSnapshot?: Record<string, unknown>;
     dealHealthScore?: number;
@@ -27,8 +17,6 @@ interface LeadCaptureProps {
 
 export function LeadCapture({
     calculatorType,
-    creditBand,
-    onCreditBandChange,
     inputsSnapshot,
     outputsSnapshot,
     dealHealthScore,
@@ -51,7 +39,6 @@ export function LeadCapture({
             name,
             email,
             phone,
-            creditBand,
             emailTermSheet,
             calculatorType,
             inputs: inputsSnapshot,
@@ -148,7 +135,7 @@ export function LeadCapture({
                         required
                     />
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 sm:col-span-2">
                     <Label htmlFor="lead-phone">Phone (optional)</Label>
                     <Input
                         id="lead-phone"
@@ -157,23 +144,6 @@ export function LeadCapture({
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="(555) 123-4567"
                     />
-                </div>
-                <div className="space-y-1.5">
-                    <Label htmlFor="lead-credit">
-                        Credit Score <span className="text-red-500">*</span>
-                    </Label>
-                    <Select value={creditBand} onValueChange={(v) => onCreditBandChange(v as CreditBandValue)}>
-                        <SelectTrigger id="lead-credit">
-                            <SelectValue placeholder="Select range..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {CREDIT_BANDS.map((band) => (
-                                <SelectItem key={band.value} value={band.value}>
-                                    {band.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
                 </div>
             </div>
 

@@ -68,6 +68,105 @@ export function MoneyInput({
     );
 }
 
+// Expense Input — Money input with Monthly/Yearly toggle
+export type ExpenseFrequency = "monthly" | "yearly";
+
+interface ExpenseInputProps {
+    id: string;
+    label: string;
+    value: number | string;
+    onChange: (monthlyValue: number) => void;
+    frequency: ExpenseFrequency;
+    onFrequencyChange: (freq: ExpenseFrequency) => void;
+    tooltip?: string;
+    placeholder?: string;
+    className?: string;
+}
+
+export function ExpenseInput({
+    id,
+    label,
+    value,
+    onChange,
+    frequency,
+    onFrequencyChange,
+    tooltip,
+    placeholder = "0",
+    className,
+}: ExpenseInputProps) {
+    // Display value: if yearly, show the yearly amount (monthly * 12)
+    // Internal value always stored as monthly
+    const numValue = typeof value === "string" ? parseFloat(value) || 0 : value;
+    const displayValue = frequency === "yearly" ? Math.round(numValue * 12 * 100) / 100 : numValue;
+
+    return (
+        <div className={cn("space-y-1.5", className)}>
+            <div className="flex items-center gap-1.5">
+                <Label htmlFor={id} className="text-sm font-medium">
+                    {label}
+                </Label>
+                {tooltip && <InfoTooltip text={tooltip} />}
+                <div className="ml-auto flex items-center rounded-md border border-border bg-muted/50 text-[11px] font-semibold overflow-hidden">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (frequency !== "monthly") {
+                                // Convert: displayed yearly value → monthly
+                                onFrequencyChange("monthly");
+                            }
+                        }}
+                        className={cn(
+                            "px-2 py-0.5 transition-colors",
+                            frequency === "monthly"
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                    >
+                        Mo
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (frequency !== "yearly") {
+                                // Convert: displayed monthly value → yearly
+                                onFrequencyChange("yearly");
+                            }
+                        }}
+                        className={cn(
+                            "px-2 py-0.5 transition-colors",
+                            frequency === "yearly"
+                                ? "bg-primary text-primary-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                        )}
+                    >
+                        Yr
+                    </button>
+                </div>
+            </div>
+            <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">
+                    $
+                </span>
+                <Input
+                    id={id}
+                    type="text"
+                    inputMode="numeric"
+                    value={displayValue === 0 ? "" : String(displayValue)}
+                    onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+                        const num = parseFloat(cleaned);
+                        const rawValue = isNaN(num) ? 0 : num;
+                        // Always store as monthly
+                        onChange(frequency === "yearly" ? rawValue / 12 : rawValue);
+                    }}
+                    placeholder={placeholder}
+                    className="pl-7 tabular-nums"
+                />
+            </div>
+        </div>
+    );
+}
+
 // Percent Input
 interface PercentInputProps {
     id: string;

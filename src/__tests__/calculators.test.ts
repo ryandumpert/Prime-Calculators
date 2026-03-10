@@ -1,23 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { computeDSCR, DSCR_BASE_RATE } from "@/lib/calculators/dscr";
+import { computeLTR } from "@/lib/calculators/long-term-rental";
+import { computeSTR } from "@/lib/calculators/short-term-rental";
 import { computeFlip, FLIP_BASE_RATE } from "@/lib/calculators/fix-and-flip";
 import {
     computeRateTermRefi,
-    RATE_TERM_BASE_RATE,
 } from "@/lib/calculators/rate-term-refi";
 import {
     computeCashOutRefi,
-    CASH_OUT_BASE_RATE,
 } from "@/lib/calculators/cash-out-refi";
-import { computeBridge, BRIDGE_BASE_RATE } from "@/lib/calculators/bridge";
 import { computeBRRRR, BRRRR_BASE_RATE } from "@/lib/calculators/brrr";
+import { DSCR_BASE_RATE } from "@/lib/constants";
 
-// ─── DSCR ────────────────────────────────────────────────────────────────────
+// ─── Purchase - Long Term Rental ─────────────────────────────────────────────
 
-describe("computeDSCR", () => {
+describe("computeLTR", () => {
     const baseInputs = {
         monthlyGrossRent: 2500,
-        vacancyRate: 5,
         propertyTaxes: 250,
         insurance: 125,
         hoa: 0,
@@ -29,69 +27,69 @@ describe("computeDSCR", () => {
         loanTermYears: 30,
         interestOnly: false,
         ioPeriodMonths: 12,
-        creditBand: "720-759" as const,
+        creditBand: "750+" as const,
     };
 
     it("marks output as complete when rent and price are > 0", () => {
-        const result = computeDSCR(baseInputs);
+        const result = computeLTR(baseInputs);
         expect(result.isComplete).toBe(true);
     });
 
     it("marks output as incomplete when rent is 0", () => {
-        const result = computeDSCR({ ...baseInputs, monthlyGrossRent: 0 });
+        const result = computeLTR({ ...baseInputs, monthlyGrossRent: 0 });
         expect(result.isComplete).toBe(false);
     });
 
-    it("calculates effective rent with vacancy deduction", () => {
-        const result = computeDSCR(baseInputs);
-        // 2500 * (1 - 5/100) = 2375
-        expect(result.effectiveRent).toBeCloseTo(2375, 2);
+    it("calculates effective rent equal to gross rent", () => {
+        const result = computeLTR(baseInputs);
+        // No vacancy deduction for LTR
+        expect(result.effectiveRent).toBeCloseTo(2500, 2);
     });
 
     it("calculates management cost from effective rent", () => {
-        const result = computeDSCR(baseInputs);
-        // 2375 * 0.08 = 190
-        expect(result.managementCost).toBeCloseTo(190, 2);
+        const result = computeLTR(baseInputs);
+        // 2500 * 0.08 = 200
+        expect(result.managementCost).toBeCloseTo(200, 2);
     });
 
     it("sets management cost to 0 when disabled", () => {
-        const result = computeDSCR({ ...baseInputs, managementEnabled: false });
+        const result = computeLTR({ ...baseInputs, managementEnabled: false });
         expect(result.managementCost).toBe(0);
     });
 
     it("calculates loan amount from purchase price and down payment", () => {
-        const result = computeDSCR(baseInputs);
+        const result = computeLTR(baseInputs);
         // 300000 * (1 - 25/100) = 225000
         expect(result.loanAmount).toBe(225000);
         expect(result.downPaymentAmount).toBe(75000);
     });
 
-    it("uses correct base rate plus credit adjustment for 720-759 band", () => {
-        const result = computeDSCR(baseInputs);
-        // 720-759 adjustment is 0.0
+    it("uses correct DSCR base rate for 750+ band", () => {
+        const result = computeLTR(baseInputs);
+        // 750+ adjustment is 0
         expect(result.estimatedRate).toBe(DSCR_BASE_RATE);
     });
 
-    it("applies credit band adjustment for 760+ band", () => {
-        const result = computeDSCR({ ...baseInputs, creditBand: "760+" });
-        // 760+ adjustment is -0.25
-        expect(result.estimatedRate).toBe(DSCR_BASE_RATE - 0.25);
+    it("applies credit band adjustment for 680-699 band", () => {
+        const result = computeLTR({ ...baseInputs, creditBand: "680-699" });
+        // 680-699 adjustment is +0.75 => 6.25 + 0.75 = 7.00
+        expect(result.estimatedRate).toBe(DSCR_BASE_RATE + 0.75);
     });
 
-    it("applies credit band adjustment for <640 band", () => {
-        const result = computeDSCR({ ...baseInputs, creditBand: "<640" });
-        // <640 adjustment is +1.75
-        expect(result.estimatedRate).toBe(DSCR_BASE_RATE + 1.75);
+    it("applies credit band adjustment for 660-679 band", () => {
+        const result = computeLTR({ ...baseInputs, creditBand: "660-679" });
+        // 660-679 adjustment is +1.0 => 6.25 + 1.0 = 7.25
+        expect(result.estimatedRate).toBe(DSCR_BASE_RATE + 1.0);
     });
 
     it("produces DSCR ratio > 1 for a healthy deal", () => {
-        const result = computeDSCR(baseInputs);
+        const result = computeLTR(baseInputs);
         expect(result.dscr).toBeGreaterThan(0.5); // Basic sanity check
         expect(result.noi).toBeGreaterThan(0);
     });
 
     it("produces positive cashflow for strong rental scenario", () => {
-        const result = computeDSCR({
+        const result = computeLTR({
             ...baseInputs,
             monthlyGrossRent: 5000,
             purchasePrice: 200000,
@@ -101,7 +99,74 @@ describe("computeDSCR", () => {
     });
 });
 
-// ─── Fix & Flip ──────────────────────────────────────────────────────────────
+// ─── Purchase - Short Term Rental ────────────────────────────────────────────
+
+describe("computeSTR", () => {
+    const baseInputs = {
+        monthlyGrossRevenue: 5000,
+        occupancyRate: 70,
+        propertyTaxes: 300,
+        insurance: 200,
+        hoa: 0,
+        managementEnabled: true,
+        managementRate: 20,
+        otherExpenses: 0,
+        purchasePrice: 400000,
+        downPaymentPercent: 25,
+        loanTermYears: 30,
+        interestOnly: false,
+        ioPeriodMonths: 12,
+        creditBand: "750+" as const,
+    };
+
+    it("marks output as complete when revenue and price are > 0", () => {
+        const result = computeSTR(baseInputs);
+        expect(result.isComplete).toBe(true);
+    });
+
+    it("marks output as incomplete when revenue is 0", () => {
+        const result = computeSTR({ ...baseInputs, monthlyGrossRevenue: 0 });
+        expect(result.isComplete).toBe(false);
+    });
+
+    it("calculates effective revenue with occupancy rate", () => {
+        const result = computeSTR(baseInputs);
+        // 5000 * (70/100) = 3500
+        expect(result.effectiveRevenue).toBeCloseTo(3500, 2);
+    });
+
+    it("calculates management cost from effective revenue", () => {
+        const result = computeSTR(baseInputs);
+        // 3500 * 0.20 = 700
+        expect(result.managementCost).toBeCloseTo(700, 2);
+    });
+
+    it("uses correct DSCR base rate", () => {
+        const result = computeSTR(baseInputs);
+        expect(result.estimatedRate).toBe(DSCR_BASE_RATE);
+    });
+
+    it("calculates cap rate from annual NOI / price", () => {
+        const result = computeSTR(baseInputs);
+        const annualNOI = result.noi * 12;
+        const expectedCapRate = (annualNOI / baseInputs.purchasePrice) * 100;
+        expect(result.capRate).toBeCloseTo(expectedCapRate, 2);
+    });
+
+    it("calculates annual gross revenue", () => {
+        const result = computeSTR(baseInputs);
+        expect(result.annualGrossRevenue).toBeCloseTo(result.effectiveRevenue * 12, 2);
+    });
+
+    it("calculates loan amount from purchase price and down payment", () => {
+        const result = computeSTR(baseInputs);
+        // 400000 * (1 - 25/100) = 300000
+        expect(result.loanAmount).toBe(300000);
+        expect(result.downPaymentAmount).toBe(100000);
+    });
+});
+
+// ─── Fix and Flip - Sell for Profit ──────────────────────────────────────────
 
 describe("computeFlip", () => {
     const baseInputs = {
@@ -116,7 +181,7 @@ describe("computeFlip", () => {
         monthlyTaxes: 200,
         monthlyInsurance: 100,
         monthlyUtilities: 250,
-        creditBand: "720-759" as const,
+        creditBand: "750+" as const,
     };
 
     it("marks output as complete when price and ARV > 0", () => {
@@ -170,26 +235,36 @@ describe("computeFlip", () => {
     });
 });
 
-// ─── Rate & Term Refi ────────────────────────────────────────────────────────
+// ─── Refinance - Rate & Term Only ────────────────────────────────────────────
 
 describe("computeRateTermRefi", () => {
     const baseInputs = {
         currentBalance: 350000,
         currentRate: 9.5,
         remainingTermYears: 27,
-        newTermYears: 30,
-        closingCosts: 8000,
-        creditBand: "720-759" as const,
+        propertyValue: 500000,
+        monthlyRent: 2500,
+        propertyTaxes: 250,
+        insurance: 125,
+        hoa: 0,
+        otherExpenses: 0,
+        creditBand: "750+" as const,
     };
 
-    it("marks output as complete when balance and rate > 0", () => {
+    it("marks output as complete when balance, rate, and rent > 0", () => {
         const result = computeRateTermRefi(baseInputs);
         expect(result.isComplete).toBe(true);
     });
 
-    it("calculates new rate from base + adjustment", () => {
+    it("calculates new rate from DSCR base + adjustment", () => {
         const result = computeRateTermRefi(baseInputs);
-        expect(result.newRate).toBe(RATE_TERM_BASE_RATE);
+        expect(result.newRate).toBe(DSCR_BASE_RATE);
+    });
+
+    it("auto-calculates closing costs at 4% of current balance", () => {
+        const result = computeRateTermRefi(baseInputs);
+        expect(result.closingCosts).toBe(350000 * 0.04);
+        expect(result.newLoanAmount).toBe(350000 + result.closingCosts);
     });
 
     it("produces monthly savings when refinancing to a lower rate", () => {
@@ -201,27 +276,41 @@ describe("computeRateTermRefi", () => {
     it("calculates breakeven in months", () => {
         const result = computeRateTermRefi(baseInputs);
         expect(result.breakevenMonths).toBeGreaterThan(0);
-        expect(result.breakevenMonths).toBeLessThan(120); // Should be less than 10 years
+        expect(result.breakevenMonths).toBeLessThan(120);
     });
 
-    it("lifetime savings accounts for closing costs", () => {
+    it("lifetime savings uses 30-year locked term and auto closing costs", () => {
         const result = computeRateTermRefi(baseInputs);
+        const expectedClosing = baseInputs.currentBalance * 0.04;
         expect(result.lifetimeSavings).toBe(
-            result.monthlySavings * baseInputs.newTermYears * 12 -
-            baseInputs.closingCosts
+            result.monthlySavings * 30 * 12 - expectedClosing
         );
     });
 
-    it("returns Infinity breakeven when no savings", () => {
+    it("calculates DSCR ratio from rent and new payment", () => {
+        const result = computeRateTermRefi(baseInputs);
+        const noi = 2500 - 250 - 125; // rent - taxes - insurance
+        expect(result.noi).toBe(noi);
+        expect(result.dscr).toBeCloseTo(noi / result.newPayment, 2);
+    });
+
+    it("calculates LTV from new loan and property value", () => {
+        const result = computeRateTermRefi(baseInputs);
+        const expectedLtv = (result.newLoanAmount / 500000) * 100;
+        expect(result.ltv).toBeCloseTo(expectedLtv, 2);
+    });
+
+    it("returns no savings when current rate is already lower", () => {
         const result = computeRateTermRefi({
             ...baseInputs,
-            currentRate: 5.0, // Already lower than new rate
+            currentRate: 5.0,
         });
         expect(result.monthlySavings).toBeLessThanOrEqual(0);
     });
 });
 
-// ─── Cash-Out Refi ───────────────────────────────────────────────────────────
+
+// ─── Refinance - Cash Out ────────────────────────────────────────────────────
 
 describe("computeCashOutRefi", () => {
     const baseInputs = {
@@ -232,7 +321,7 @@ describe("computeCashOutRefi", () => {
         closingCostPercent: 2,
         monthlyTaxes: 400,
         monthlyInsurance: 150,
-        creditBand: "720-759" as const,
+        creditBand: "750+" as const,
     };
 
     it("marks output as complete when value and balance > 0", () => {
@@ -273,62 +362,13 @@ describe("computeCashOutRefi", () => {
         expect(result.newLtv).toBeCloseTo(75, 1);
     });
 
-    it("uses correct base rate", () => {
+    it("uses correct DSCR base rate", () => {
         const result = computeCashOutRefi(baseInputs);
-        expect(result.newRate).toBe(CASH_OUT_BASE_RATE);
+        expect(result.newRate).toBe(DSCR_BASE_RATE);
     });
 });
 
-// ─── Bridge Loan ─────────────────────────────────────────────────────────────
-
-describe("computeBridge", () => {
-    const baseInputs = {
-        purchasePrice: 400000,
-        downPaymentPercent: 20,
-        termMonths: 12,
-        pointsPercent: 2,
-        monthlyHoldingCosts: 800,
-        creditBand: "720-759" as const,
-    };
-
-    it("marks output as complete when price > 0", () => {
-        const result = computeBridge(baseInputs);
-        expect(result.isComplete).toBe(true);
-    });
-
-    it("calculates loan amount from purchase and down payment", () => {
-        const result = computeBridge(baseInputs);
-        // 400000 * (1 - 0.20) = 320000
-        expect(result.loanAmount).toBe(320000);
-        expect(result.downPayment).toBe(80000);
-    });
-
-    it("uses bridge base rate", () => {
-        const result = computeBridge(baseInputs);
-        expect(result.estimatedRate).toBe(BRIDGE_BASE_RATE);
-    });
-
-    it("calculates points cost", () => {
-        const result = computeBridge(baseInputs);
-        // 320000 * 2% = 6400
-        expect(result.pointsCost).toBe(6400);
-    });
-
-    it("calculates total holding cost over term", () => {
-        const result = computeBridge(baseInputs);
-        // 800 * 12 = 9600
-        expect(result.totalHoldingCost).toBe(9600);
-    });
-
-    it("total loan cost sums interest + points + holding", () => {
-        const result = computeBridge(baseInputs);
-        expect(result.totalLoanCost).toBe(
-            result.totalInterestCost + result.pointsCost + result.totalHoldingCost
-        );
-    });
-});
-
-// ─── BRRRR ───────────────────────────────────────────────────────────────────
+// ─── Fix and Flip - Rent After (BRRRR) ──────────────────────────────────────
 
 describe("computeBRRRR", () => {
     const baseInputs = {
@@ -343,7 +383,7 @@ describe("computeBRRRR", () => {
         refiLtvPercent: 75,
         refiTermYears: 30,
         closingCostPercent: 2,
-        creditBand: "720-759" as const,
+        creditBand: "750+" as const,
     };
 
     it("marks output as complete when price, arv, and rent > 0", () => {
@@ -466,24 +506,53 @@ describe("format utilities", () => {
 // ─── Deal Health ─────────────────────────────────────────────────────────────
 
 describe("deal health scoring", () => {
-    it("dscrDealHealth returns good for strong DSCR", async () => {
-        const { dscrDealHealth } = await import("@/lib/deal-health");
-        const result = dscrDealHealth(1.5, 500);
+    it("ltrDealHealth returns excellent for DSCR >= 1.3", async () => {
+        const { ltrDealHealth } = await import("@/lib/deal-health");
+        const result = ltrDealHealth(1.5, 500, 8.5);
+        expect(result.level).toBe("excellent");
+        expect(result.score).toBeGreaterThanOrEqual(85);
+    });
+
+    it("ltrDealHealth returns good for DSCR between 1.21 and 1.3", async () => {
+        const { ltrDealHealth } = await import("@/lib/deal-health");
+        const result = ltrDealHealth(1.25, 300, 7.0);
         expect(result.level).toBe("good");
-        expect(result.score).toBeGreaterThanOrEqual(70);
+        expect(result.score).toBeGreaterThanOrEqual(65);
     });
 
-    it("dscrDealHealth returns poor for DSCR < 1", async () => {
-        const { dscrDealHealth } = await import("@/lib/deal-health");
-        const result = dscrDealHealth(0.8, -200);
+    it("ltrDealHealth returns fair for DSCR between 1.0 and 1.2", async () => {
+        const { ltrDealHealth } = await import("@/lib/deal-health");
+        const result = ltrDealHealth(1.1, 100, 7.0);
+        expect(result.level).toBe("fair");
+        expect(result.score).toBeGreaterThanOrEqual(40);
+        expect(result.score).toBeLessThan(65);
+    });
+
+    it("ltrDealHealth returns poor for DSCR < 1", async () => {
+        const { ltrDealHealth } = await import("@/lib/deal-health");
+        const result = ltrDealHealth(0.8, -200, 9.0);
         expect(result.level).toBe("poor");
-        expect(result.score).toBeLessThan(50);
+        expect(result.score).toBeLessThan(40);
     });
 
-    it("flipDealHealth returns good for high-profit flip", async () => {
+    it("strDealHealth returns excellent for strong STR", async () => {
+        const { strDealHealth } = await import("@/lib/deal-health");
+        const result = strDealHealth(1.5, 800, 75, 9.0);
+        expect(result.level).toBe("excellent");
+        expect(result.score).toBeGreaterThanOrEqual(85);
+    });
+
+    it("strDealHealth penalizes low occupancy", async () => {
+        const { strDealHealth } = await import("@/lib/deal-health");
+        const highOcc = strDealHealth(1.3, 500, 80, 9.0);
+        const lowOcc = strDealHealth(1.3, 500, 40, 9.0);
+        expect(lowOcc.score).toBeLessThan(highOcc.score);
+    });
+
+    it("flipDealHealth returns excellent for high-profit flip", async () => {
         const { flipDealHealth } = await import("@/lib/deal-health");
         const result = flipDealHealth(80000, 35, 6);
-        expect(result.level).toBe("good");
+        expect(result.level).toBe("excellent");
     });
 
     it("flipDealHealth returns poor for negative profit", async () => {

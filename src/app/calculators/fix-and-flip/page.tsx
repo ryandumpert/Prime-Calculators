@@ -7,8 +7,10 @@ import { KpiCard } from "@/components/kpi-card";
 import { LeadCapture } from "@/components/lead-capture";
 import {
     MoneyInput,
+    ExpenseInput,
     PercentInput,
     NumberInput,
+    type ExpenseFrequency,
 } from "@/components/calculator-inputs";
 import { computeFlip, type FlipInputs } from "@/lib/calculators/fix-and-flip";
 import { flipDealHealth } from "@/lib/deal-health";
@@ -29,7 +31,13 @@ export default function FixAndFlipPage() {
         monthlyTaxes: 200,
         monthlyInsurance: 100,
         monthlyUtilities: 250,
-        creditBand: "720-759" as CreditBandValue,
+        creditBand: "750+" as CreditBandValue,
+    });
+
+    const [freqs, setFreqs] = useState<Record<string, ExpenseFrequency>>({
+        monthlyTaxes: "monthly",
+        monthlyInsurance: "monthly",
+        monthlyUtilities: "monthly",
     });
 
     const update = <K extends keyof FlipInputs>(key: K, value: FlipInputs[K]) => {
@@ -50,8 +58,8 @@ export default function FixAndFlipPage() {
 
     return (
         <CalculatorLayout
-            title="Fix & Flip Profit Calculator"
-            description="Estimate your gross profit, ROI, and total financing cost for a flip project."
+            title="Fix and Flip - Sell for Profit"
+            description="Estimate your gross profit, ROI, annualized return, and total financing cost for a flip project."
             assumptions={[
                 `Base rate estimate: 11.50% (before credit adjustment)`,
                 `Your estimated rate: ${formatPercent(outputs.estimatedRate)}`,
@@ -151,28 +159,34 @@ export default function FixAndFlipPage() {
 
                     <div>
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                            Monthly Holding Costs
+                            Holding Costs
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
-                            <MoneyInput
+                            <ExpenseInput
                                 id="monthly-taxes"
                                 label="Taxes"
                                 value={inputs.monthlyTaxes}
                                 onChange={(v) => update("monthlyTaxes", v)}
+                                frequency={freqs.monthlyTaxes}
+                                onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyTaxes: f }))}
                             />
-                            <MoneyInput
+                            <ExpenseInput
                                 id="monthly-insurance"
                                 label="Insurance"
                                 value={inputs.monthlyInsurance}
                                 onChange={(v) => update("monthlyInsurance", v)}
+                                frequency={freqs.monthlyInsurance}
+                                onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyInsurance: f }))}
                             />
                         </div>
                         <div className="mt-3">
-                            <MoneyInput
+                            <ExpenseInput
                                 id="monthly-utilities"
                                 label="Utilities / Holding"
                                 value={inputs.monthlyUtilities}
                                 onChange={(v) => update("monthlyUtilities", v)}
+                                frequency={freqs.monthlyUtilities}
+                                onFrequencyChange={(f) => setFreqs((p) => ({ ...p, monthlyUtilities: f }))}
                             />
                         </div>
                     </div>
@@ -243,9 +257,7 @@ export default function FixAndFlipPage() {
             }
             leadCapture={
                 <LeadCapture
-                    calculatorType="Fix & Flip"
-                    creditBand={inputs.creditBand}
-                    onCreditBandChange={(v) => update("creditBand", v)}
+                    calculatorType="Fix and Flip - Sell for Profit"
                     inputsSnapshot={inputs as unknown as Record<string, unknown>}
                     outputsSnapshot={outputs as unknown as Record<string, unknown>}
                     dealHealthScore={dealHealth?.score}

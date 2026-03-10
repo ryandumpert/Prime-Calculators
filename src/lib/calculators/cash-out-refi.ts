@@ -1,4 +1,4 @@
-import { getCreditAdjustment, type CreditBandValue } from "@/lib/constants";
+import { getDSCRRate, type CreditBandValue } from "@/lib/constants";
 import { calcMonthlyPayment } from "@/lib/format";
 
 export interface CashOutRefiInputs {
@@ -26,7 +26,6 @@ export interface CashOutRefiOutputs {
     isComplete: boolean;
 }
 
-export const CASH_OUT_BASE_RATE = 8.0;
 
 export function computeCashOutRefi(
     inputs: CashOutRefiInputs
@@ -44,7 +43,7 @@ export function computeCashOutRefi(
 
     const isComplete = propertyValue > 0 && currentBalance > 0;
 
-    const newRate = CASH_OUT_BASE_RATE + getCreditAdjustment(creditBand);
+    const newRate = getDSCRRate(creditBand);
     const maxLoanAmount = propertyValue * (maxLtvPercent / 100);
     const grossCashOut = maxLoanAmount - currentBalance;
     const closingCosts = (maxLoanAmount * closingCostPercent) / 100;

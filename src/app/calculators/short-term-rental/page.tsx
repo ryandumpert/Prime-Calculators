@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalculatorLayout } from "@/components/calculator-layout";
 import { DealHealthIndicator } from "@/components/deal-health-indicator";
 import { KpiCard } from "@/components/kpi-card";
@@ -9,34 +9,50 @@ import {
     MoneyInput,
     ExpenseInput,
     PercentInput,
-    NumberInput,
+    ToggleInput,
     SelectInput,
     type ExpenseFrequency,
 } from "@/components/calculator-inputs";
-import {
-    computeRateTermRefi,
-    REFI_CLOSING_COST_PERCENT,
-    REFI_TERM_YEARS,
-    type RateTermRefiInputs,
-} from "@/lib/calculators/rate-term-refi";
-import { refiDealHealth } from "@/lib/deal-health";
-import { formatCurrency, formatPercent, formatMonths, formatRatio } from "@/lib/format";
-import { CREDIT_BANDS, type CreditBandValue } from "@/lib/constants";
+import { computeSTR, type STRInputs } from "@/lib/calculators/short-term-rental";
+import { strDealHealth } from "@/lib/deal-health";
+import { formatCurrency, formatPercent, formatRatio } from "@/lib/format";
+import { CREDIT_BANDS, getDSCRDownPaymentOptions, type CreditBandValue } from "@/lib/constants";
 import { Separator } from "@/components/ui/separator";
 
-export default function RateTermRefiPage() {
-    const [inputs, setInputs] = useState<RateTermRefiInputs>({
-        currentBalance: 350000,
-        currentRate: 9.5,
-        remainingTermYears: 27,
-        propertyValue: 500000,
-        monthlyRent: 2500,
-        propertyTaxes: 250,
-        insurance: 125,
+export default function ShortTermRentalPage() {
+    const [inputs, setInputs] = useState<STRInputs>({
+        monthlyGrossRevenue: 5000,
+        occupancyRate: 70,
+        propertyTaxes: 300,
+        insurance: 200,
         hoa: 0,
+        managementEnabled: true,
+        managementRate: 20,
         otherExpenses: 0,
+        purchasePrice: 400000,
+        downPaymentPercent: 20,
+        loanTermYears: 30,
+        interestOnly: false,
+        ioPeriodMonths: 12,
         creditBand: "750+" as CreditBandValue,
     });
+
+    // Available down-payment options based on the selected credit band
+    const downPaymentOptions = useMemo(
+        () => getDSCRDownPaymentOptions(inputs.creditBand),
+        [inputs.creditBand]
+    );
+
+    // When the credit band changes, reset the down payment to the tier's default
+    // if the current selection is no longer available.
+    useEffect(() => {
+        if (!downPaymentOptions.options.includes(inputs.downPaymentPercent)) {
+            setInputs((prev) => ({
+                ...prev,
+                downPaymentPercent: downPaymentOptions.defaultPercent,
+            }));
+        }
+    }, [inputs.creditBand]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const [freqs, setFreqs] = useState<Record<string, ExpenseFrequency>>({
         propertyTaxes: "monthly",
@@ -45,104 +61,70 @@ export default function RateTermRefiPage() {
         otherExpenses: "monthly",
     });
 
-    const update = <K extends keyof RateTermRefiInputs>(
-        key: K,
-        value: RateTermRefiInputs[K]
-    ) => {
+    const update = <K extends keyof STRInputs>(key: K, value: STRInputs[K]) => {
         setInputs((prev) => ({ ...prev, [key]: value }));
     };
 
-    const outputs = useMemo(() => computeRateTermRefi(inputs), [inputs]);
+    const outputs = useMemo(() => computeSTR(inputs), [inputs]);
 
     const dealHealth = useMemo(() => {
         if (!outputs.isComplete) return null;
-        return refiDealHealth(
-            outputs.monthlySavings,
-            outputs.breakevenMonths,
+        return strDealHealth(
             outputs.dscr,
-            outputs.newRate
+            outputs.monthlyCashflow,
+            inputs.occupancyRate,
+            outputs.estimatedRate
         );
-    }, [outputs]);
+    }, [outputs, inputs.occupancyRate]);
 
-    const savingsVariant = outputs.monthlySavings > 0 ? "success" : "danger";
+    const cashflowVariant = outputs.monthlyCashflow >= 0 ? "success" : "danger";
     const dscrVariant =
         outputs.dscr > 1.3 ? "excellent" : outputs.dscr >= 1.21 ? "success" : outputs.dscr >= 1.0 ? "warning" : "danger";
-    const cashflowVariant = outputs.monthlyCashflow >= 0 ? "success" : "danger";
 
     return (
         <CalculatorLayout
-            title="Refinance - Rate & Term Only"
-            description="See your monthly savings, DSCR ratio, and cashflow when refinancing to a better rate or term."
+            title="Purchase - Short Term Rental"
+            description="Analyze cashflow and DSCR for short-term vacation rental properties like Airbnb and VRBO."
             assumptions={[
                 `DSCR base rate: 6.25% (750+ credit)`,
-                `Your estimated new rate: ${formatPercent(outputs.newRate)}`,
-                `New loan term: ${REFI_TERM_YEARS}-year fixed`,
-                `Closing costs: ${REFI_CLOSING_COST_PERCENT}% of loan balance (high-end estimate), rolled into new loan`,
+                `Your estimated rate: ${formatPercent(outputs.estimatedRate)}`,
+                `Occupancy rate: ${inputs.occupancyRate}%`,
+                `Property management: ${inputs.managementEnabled ? `${inputs.managementRate}%` : "Disabled"}`,
+                `Loan term: 30-year fixed`,
+                `STR DSCR loans may use 12-month revenue history or projections`,
             ]}
             inputs={
                 <div className="space-y-5">
-                    {/* Current Loan */}
+                    {/* Revenue */}
                     <div>
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                            Current Loan
+                            Rental Revenue
                         </h3>
-                        <div className="space-y-3">
-                            <MoneyInput
-                                id="current-balance"
-                                label="Current Loan Balance"
-                                value={inputs.currentBalance}
-                                onChange={(v) => update("currentBalance", v)}
-                            />
+                        <MoneyInput
+                            id="gross-revenue"
+                            label="Monthly Gross Revenue"
+                            value={inputs.monthlyGrossRevenue}
+                            onChange={(v) => update("monthlyGrossRevenue", v)}
+                            tooltip="Average monthly revenue at full occupancy (nightly rate × 30)"
+                        />
+                        <div className="mt-3">
                             <PercentInput
-                                id="current-rate"
-                                label="Current Rate"
-                                value={inputs.currentRate}
-                                onChange={(v) => update("currentRate", v)}
-                                max={20}
-                            />
-                            <NumberInput
-                                id="remaining-term"
-                                label="Remaining Term"
-                                value={inputs.remainingTermYears}
-                                onChange={(v) => update("remainingTermYears", v)}
-                                unit="years"
-                                min={1}
-                                max={40}
+                                id="occupancy"
+                                label="Occupancy Rate"
+                                value={inputs.occupancyRate}
+                                onChange={(v) => update("occupancyRate", v)}
+                                tooltip="Percentage of nights booked per month on average"
+                                max={100}
                             />
                         </div>
                     </div>
 
                     <Separator />
 
-                    {/* Property & Rental Income */}
+                    {/* Operating Expenses */}
                     <div>
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                            Property & Income
-                        </h3>
-                        <div className="space-y-3">
-                            <MoneyInput
-                                id="property-value"
-                                label="Current Property Value"
-                                value={inputs.propertyValue}
-                                onChange={(v) => update("propertyValue", v)}
-                                tooltip="Estimated current market value of the property"
-                            />
-                            <MoneyInput
-                                id="monthly-rent"
-                                label="Monthly Rent"
-                                value={inputs.monthlyRent}
-                                onChange={(v) => update("monthlyRent", v)}
-                                tooltip="Total monthly rental income"
-                            />
-                        </div>
-                    </div>
-
-                    <Separator />
-
-                    {/* Expenses */}
-                    <div>
-                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                            Monthly Expenses
+                            Operating Expenses
                         </h3>
                         <div className="grid grid-cols-2 gap-3">
                             <ExpenseInput
@@ -161,6 +143,7 @@ export default function RateTermRefiPage() {
                                 onChange={(v) => update("insurance", v)}
                                 frequency={freqs.insurance}
                                 onFrequencyChange={(f) => setFreqs((p) => ({ ...p, insurance: f }))}
+                                tooltip="STR-specific insurance may be higher than traditional"
                             />
                             <ExpenseInput
                                 id="hoa"
@@ -180,14 +163,32 @@ export default function RateTermRefiPage() {
                                 onFrequencyChange={(f) => setFreqs((p) => ({ ...p, otherExpenses: f }))}
                             />
                         </div>
+                        <div className="mt-3 space-y-3">
+                            <ToggleInput
+                                id="management-toggle"
+                                label="Property Management"
+                                checked={inputs.managementEnabled}
+                                onChange={(v) => update("managementEnabled", v)}
+                                tooltip="STR management companies typically charge 15–25%"
+                            />
+                            {inputs.managementEnabled && (
+                                <PercentInput
+                                    id="management-rate"
+                                    label="Management Rate"
+                                    value={inputs.managementRate}
+                                    onChange={(v) => update("managementRate", v)}
+                                    max={35}
+                                />
+                            )}
+                        </div>
                     </div>
 
                     <Separator />
 
-                    {/* New Loan Terms */}
+                    {/* Loan Details */}
                     <div>
                         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-                            New Loan Terms
+                            Loan Details
                         </h3>
                         <div className="space-y-3">
                             <SelectInput
@@ -196,7 +197,24 @@ export default function RateTermRefiPage() {
                                 value={inputs.creditBand}
                                 onChange={(v) => update("creditBand", v as CreditBandValue)}
                                 options={CREDIT_BANDS.map((b) => ({ label: b.label, value: b.value }))}
-                                tooltip="Your credit score determines the interest rate used in calculations"
+                                tooltip="Your credit score determines the interest rate and available down payment options"
+                            />
+                            <MoneyInput
+                                id="purchase-price"
+                                label="Purchase Price"
+                                value={inputs.purchasePrice}
+                                onChange={(v) => update("purchasePrice", v)}
+                            />
+                            <SelectInput
+                                id="down-payment"
+                                label="Down Payment"
+                                value={String(inputs.downPaymentPercent)}
+                                onChange={(v) => update("downPaymentPercent", Number(v))}
+                                options={downPaymentOptions.options.map((dp) => ({
+                                    label: `${dp}%`,
+                                    value: String(dp),
+                                }))}
+                                tooltip="Available down payment options based on your credit score"
                             />
                         </div>
                     </div>
@@ -205,7 +223,6 @@ export default function RateTermRefiPage() {
             dealHealth={<DealHealthIndicator result={dealHealth} />}
             outputs={
                 <div className="space-y-4">
-                    {/* Primary KPIs — DSCR & Cashflow */}
                     <div className="grid grid-cols-2 gap-4">
                         <KpiCard
                             label="DSCR Ratio"
@@ -226,87 +243,61 @@ export default function RateTermRefiPage() {
                             sublabel="After all expenses"
                         />
                     </div>
-
-                    {/* Payment Comparison */}
                     <div className="grid grid-cols-3 gap-4">
                         <KpiCard
-                            label="Current Payment"
+                            label="Monthly Payment"
                             value={
                                 outputs.isComplete
-                                    ? formatCurrency(outputs.currentPayment)
+                                    ? formatCurrency(outputs.monthlyPayment)
                                     : "—"
                             }
-                            sublabel={`at ${formatPercent(inputs.currentRate)}`}
+                            sublabel={`at ${formatPercent(outputs.estimatedRate)}`}
                         />
                         <KpiCard
-                            label="New Payment"
+                            label="Monthly NOI"
                             value={
-                                outputs.isComplete ? formatCurrency(outputs.newPayment) : "—"
+                                outputs.isComplete ? formatCurrency(outputs.noi) : "—"
                             }
-                            sublabel={`at ${formatPercent(outputs.newRate)}`}
-                            variant="primary"
+                            sublabel="Net Operating Income"
                         />
                         <KpiCard
-                            label="Monthly Savings"
+                            label="Cap Rate"
                             value={
                                 outputs.isComplete
-                                    ? formatCurrency(outputs.monthlySavings)
+                                    ? formatPercent(outputs.capRate)
                                     : "—"
                             }
-                            variant={outputs.isComplete ? savingsVariant : "default"}
-                            sublabel="Per month"
+                            sublabel="Annual NOI / Price"
                         />
                     </div>
-
-                    {/* Loan & Financial Details */}
                     <div className="grid grid-cols-3 gap-4">
                         <KpiCard
-                            label="New Loan Amount"
-                            value={formatCurrency(outputs.newLoanAmount)}
+                            label="Annual Revenue"
+                            value={formatCurrency(outputs.annualGrossRevenue)}
                             size="sm"
-                            sublabel="Incl. closing costs"
+                            sublabel="After occupancy"
                         />
                         <KpiCard
-                            label="Closing Costs"
-                            value={formatCurrency(outputs.closingCosts)}
+                            label="Loan Amount"
+                            value={formatCurrency(outputs.loanAmount)}
                             size="sm"
-                            sublabel={`${REFI_CLOSING_COST_PERCENT}% of balance`}
                         />
                         <KpiCard
-                            label="LTV"
-                            value={outputs.isComplete ? formatPercent(outputs.ltv) : "—"}
-                            size="sm"
-                            sublabel="Loan-to-Value"
-                        />
-                    </div>
-
-                    {/* Breakeven & Lifetime */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <KpiCard
-                            label="Breakeven"
-                            value={
-                                outputs.isComplete && isFinite(outputs.breakevenMonths)
-                                    ? formatMonths(outputs.breakevenMonths)
-                                    : "—"
-                            }
-                            sublabel="To recoup closing costs"
-                        />
-                        <KpiCard
-                            label="Lifetime Savings"
+                            label="Annual Cashflow"
                             value={
                                 outputs.isComplete
-                                    ? formatCurrency(outputs.lifetimeSavings)
+                                    ? formatCurrency(outputs.annualCashflow)
                                     : "—"
                             }
-                            sublabel={`Over 30 years, net of costs`}
-                            variant={outputs.isComplete && outputs.lifetimeSavings > 0 ? "success" : "default"}
+                            size="sm"
+                            variant={outputs.isComplete && outputs.annualCashflow >= 0 ? "success" : "default"}
                         />
                     </div>
                 </div>
             }
             leadCapture={
                 <LeadCapture
-                    calculatorType="Refinance - Rate & Term Only"
+                    calculatorType="Purchase - Short Term Rental"
                     inputsSnapshot={inputs as unknown as Record<string, unknown>}
                     outputsSnapshot={outputs as unknown as Record<string, unknown>}
                     dealHealthScore={dealHealth?.score}
